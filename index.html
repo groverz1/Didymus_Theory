@@ -3,79 +3,857 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MSU Research Terminal</title>
+	<meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>Improbable Research Terminal</title>
     <style>
-        body {
-            background-color: black;
-            color: green;
-            font-family: "Courier New", Courier, monospace;
-            padding: 20px;
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --green: #00FF41;
+            --green-dim: #00c832;
+            --green-glow: rgba(0, 255, 65, 0.35);
+            --cyan: #00FFFF;
+            --red: #FF3300;
+            --amber: #FFB000;
+            --bg: #010a01;
         }
-        #terminal {
-            width: 80%;
-            height: 400px;
-            border: 1px solid green;
-            padding: 10px;
-            overflow-y: auto;
+
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--green);
+            font-family: "Courier New", Courier, monospace;
+            font-size: 15px;
+            overflow-x: hidden;
+        }
+
+        /* CRT scanlines */
+        body::after {
+            content: "";
+            display: block;
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.18) 2px, rgba(0,0,0,0.18) 4px);
+            pointer-events: none;
+            z-index: 999;
+        }
+        /* CRT vignette */
+        body::before {
+            content: "";
+            display: block;
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.78) 100%);
+            pointer-events: none;
+            z-index: 998;
+        }
+
+        /* ── BOOT SCREEN ── */
+        #boot-screen {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 18px;
+            z-index: 50;
+            text-shadow: 0 0 8px var(--green-glow);
+        }
+        .boot-logo {
+            font-size: 12px;
+            line-height: 1.3;
+            text-align: center;
+            opacity: 0.85;
+            color: var(--green);
+        }
+        .boot-title {
+            font-size: 18px;
+            letter-spacing: 0.1em;
+            color: var(--green);
+            animation: flicker 3s infinite;
+        }
+        #progress-bar-wrap {
+            width: 320px;
+            border: 1px solid var(--green-dim);
+            padding: 2px;
+        }
+        #progress-bar-fill {
+            height: 14px;
+            background: var(--green);
+            width: 0%;
+            transition: width 0.25s linear;
+            box-shadow: 0 0 8px var(--green-glow);
+        }
+        #progress-text { font-size: 12px; color: var(--green-dim); }
+
+        /* ── MAIN TERMINAL PAGE ── */
+        #main-page {
+            display: none;
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 28px 28px 40px;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 0;
+        }
+
+        /* Left: terminal output */
+        #terminal-col {
+            flex: 1;
+            min-width: 0;
+            padding-right: 36px;
+            padding-bottom: 90px;
+        }
+        #terminal-output {
             white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.6;
+            text-shadow: 0 0 5px var(--green-glow);
         }
-        input {
-            background: black;
-            color: green;
+        #terminal-output .line    { display: block; }
+        #terminal-output .echo    { color: var(--green-dim); }
+        #terminal-output .success { color: var(--cyan); text-shadow: 0 0 6px rgba(0,255,255,0.4); }
+        #terminal-output .alert   { color: var(--red);  text-shadow: 0 0 6px rgba(255,51,0,0.5); }
+        #terminal-output .warn    { color: var(--amber); text-shadow: 0 0 6px rgba(255,176,0,0.4); }
+        #terminal-output .dim     { color: var(--green-dim); }
+        #terminal-output .bright  { color: #fff; text-shadow: 0 0 8px rgba(255,255,255,0.3); }
+
+        /* Sticky input bar */
+        #input-bar {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: linear-gradient(transparent, var(--bg) 35%);
+            padding: 18px 0 14px;
+            z-index: 10;
+        }
+        #input-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 12px 28px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-top: 1px solid rgba(0,255,65,0.2);
+        }
+        /* Align input under the left terminal column only */
+        #input-inner { padding-right: calc(28px + 304px + 36px); }
+
+        .prompt-label {
+            color: var(--green);
+            font-weight: bold;
+            white-space: nowrap;
+            text-shadow: 0 0 6px var(--green-glow);
+            flex-shrink: 0;
+        }
+        #cmd-input {
+            flex: 1;
+            background: transparent;
             border: none;
+            color: var(--green);
             font-family: "Courier New", Courier, monospace;
-            width: 80%;
+            font-size: 15px;
             outline: none;
+            text-shadow: 0 0 5px var(--green-glow);
+            caret-color: var(--green);
+        }
+        .blink-cursor {
+            display: inline-block;
+            width: 9px; height: 16px;
+            background: var(--green);
+            vertical-align: middle;
+            animation: blink 1s step-start infinite;
+            box-shadow: 0 0 6px var(--green-glow);
+        }
+
+        /* Right: persistent login panel */
+        #login-panel {
+            width: 304px;
+            flex-shrink: 0;
+            border: 1px solid var(--green-dim);
+            padding: 26px 22px;
+            background: rgba(0,255,65,0.025);
+            text-shadow: 0 0 5px var(--green-glow);
+            position: sticky;
+            top: 28px;
+        }
+        #login-panel h2 {
+            font-size: 11px;
+            letter-spacing: 0.18em;
+            color: var(--cyan);
+            text-align: center;
+            margin-bottom: 22px;
+            text-shadow: 0 0 6px rgba(0,255,255,0.4);
+        }
+        .lf { margin-bottom: 14px; }
+        .lf label {
+            display: block;
+            font-size: 11px;
+            color: var(--green-dim);
+            letter-spacing: 0.1em;
+            margin-bottom: 5px;
+        }
+        .lf input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--green-dim);
+            color: var(--green);
+            font-family: "Courier New", Courier, monospace;
+            font-size: 14px;
+            outline: none;
+            padding: 4px 0;
+            text-shadow: 0 0 4px var(--green-glow);
+        }
+        #login-error {
+            font-size: 11px;
+            text-align: center;
+            min-height: 16px;
+            margin: 6px 0 2px;
+        }
+        #login-submit {
+            display: block;
+            width: 100%;
+            background: transparent;
+            border: 1px solid var(--green);
+            color: var(--green);
+            font-family: "Courier New", Courier, monospace;
+            font-size: 13px;
+            padding: 9px;
+            cursor: pointer;
+            letter-spacing: 0.1em;
+            text-shadow: 0 0 5px var(--green-glow);
+            transition: background 0.15s;
+            margin-top: 14px;
+        }
+        #login-submit:hover { background: rgba(0,255,65,0.08); }
+
+        /* ── FULLSCREEN SECONDARY PAGES ── */
+        .fs-page {
+            display: none;
+            min-height: 100vh;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 50px 28px 60px;
+            gap: 24px;
+            background: var(--bg);
+        }
+        .fs-header {
+            font-size: 12px;
+            letter-spacing: 0.18em;
+            color: var(--amber);
+            text-shadow: 0 0 8px rgba(255,176,0,0.5);
+            text-align: center;
+        }
+        .fs-content {
+            max-width: 780px;
+            width: 100%;
+            line-height: 1.75;
+            text-shadow: 0 0 5px var(--green-glow);
+        }
+        .fs-back-btn {
+            background: transparent;
+            border: 1px solid var(--green-dim);
+            color: var(--green-dim);
+            font-family: "Courier New", Courier, monospace;
+            font-size: 13px;
+            padding: 10px 28px;
+            cursor: pointer;
+            letter-spacing: 0.12em;
+            margin-top: 8px;
+        }
+        .fs-back-btn:hover { border-color: var(--green); color: var(--green); }
+
+        /* Binary screen */
+        #binary-dump {
+            font-size: 14px;
+            line-height: 2.1;
+            text-align: center;
+            word-break: break-word;
+        }
+        #binary-dump .bin-real  { color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.65); font-size: 15px; }
+        #binary-dump .bin-noise { color: var(--green-dim); opacity: 0.5; }
+        #binary-dump .bin-hint  { display: block; margin-top: 22px; color: var(--amber); font-size: 13px; text-shadow: 0 0 6px rgba(255,176,0,0.4); }
+
+        /* Code block used on HHGTTG screens */
+        .code-block {
+            background: rgba(0,255,65,0.03);
+            border: 1px solid rgba(0,255,65,0.2);
+            padding: 22px 26px;
+            line-height: 1.9;
+            font-size: 14px;
+            width: 100%;
+            max-width: 780px;
+        }
+        .cb-label { color: var(--amber); letter-spacing: 0.08em; }
+        .cb-val   { color: #fff; text-shadow: 0 0 8px rgba(255,255,255,0.35); }
+        .cb-noise { color: var(--green-dim); opacity: 0.65; }
+        .cb-note  { color: var(--red); font-size: 13px; text-shadow: 0 0 5px rgba(255,51,0,0.4); }
+
+        /* Video screen */
+        #video-screen h1 {
+            font-size: 20px;
+            color: var(--cyan);
+            letter-spacing: 0.07em;
+            text-shadow: 0 0 12px rgba(0,255,255,0.5);
+            animation: flicker 4s infinite;
+            text-align: center;
+        }
+        #video-screen p { color: var(--green-dim); font-size: 13px; text-align: center; max-width: 560px; }
+        .video-frame {
+            width: 100%; max-width: 760px;
+            border: 2px solid var(--green-dim);
+            box-shadow: 0 0 28px rgba(0,255,65,0.18);
+            position: relative;
+            padding-bottom: 42.75%;
+            height: 0; overflow: hidden;
+        }
+        .video-frame iframe, .video-frame video {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            background: #000;
+        }
+
+        /* ── ANIMATIONS ── */
+        @keyframes blink   { 0%,100%{opacity:1} 50%{opacity:0} }
+        @keyframes flicker {
+            0%,94%,100%{opacity:1}
+            95%{opacity:.7} 96%{opacity:1}
+            97%{opacity:.4} 98%{opacity:1}
+        }
+
+        /* Responsive: stack on narrow screens */
+        @media (max-width: 740px) {
+            #main-page { flex-direction: column; padding: 16px 14px 160px; }
+            #terminal-col { padding-right: 0; padding-bottom: 20px; }
+            #login-panel { width: 100%; position: static; }
+            #input-inner { padding-right: 14px; }
         }
     </style>
 </head>
 <body>
 
-<h2>RESEARCH TERMINAL - DIDYMUS</h2>
-<div id="terminal">
-    > Welcome to the MISKATONIC UNIVERSITY Archives Terminal.<br>
-    > Type "help" for a list of commands.<br>
+<!-- ══ BOOT SCREEN ══ -->
+<div id="boot-screen">
+    <pre class="boot-logo">
+ ██████╗ ██╗██████╗ ██╗   ██╗███╗   ███╗██╗   ██╗███████╗
+ ██╔══██╗██║██╔══██╗╚██╗ ██╔╝████╗ ████║██║   ██║██╔════╝
+ ██║  ██║██║██║  ██║ ╚████╔╝ ██╔████╔██║██║   ██║███████╗
+ ██║  ██║██║██║  ██║  ╚██╔╝  ██║╚██╔╝██║██║   ██║╚════██║
+ ██████╔╝██║██████╔╝   ██║   ██║ ╚═╝ ██║╚██████╔╝███████║
+ ╚═════╝ ╚═╝╚═════╝    ╚═╝   ╚═╝     ╚═╝ ╚═════╝ ╚══════╝</pre>
+    <div class="boot-title">LOADING DIDYMUS CORE SYSTEM v4.8 Sirius Cybernetics Corporation™...</div>
+    <div id="progress-bar-wrap"><div id="progress-bar-fill"></div></div>
+    <div id="progress-text">INITIALIZING... 0%</div>
 </div>
-<input type="text" id="input" autofocus>
 
+<!-- ══ MAIN TERMINAL PAGE  (terminal left | login panel right) ══ -->
+<div id="main-page">
+    <!-- Left: scrolling terminal output -->
+    <div id="terminal-col">
+        <div id="terminal-output"></div>
+    </div>
+
+    <!-- Right: persistent login panel -->
+    <div id="login-panel">
+        <h2>// SECURE ACCESS PORTAL //</h2>
+        <div class="lf">
+            <label>USERNAME:</label>
+            <input type="text" id="login-user" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="lf">
+            <label>PASSWORD:</label>
+            <input type="password" id="login-pass" autocomplete="off">
+        </div>
+        <div id="login-error"></div>
+        <button id="login-submit">[ AUTHENTICATE ]</button>
+    </div>
+</div>
+
+<!-- sticky input (only visible on main page) -->
+<div id="input-bar" style="display:none;">
+    <div id="input-inner">
+        <span class="prompt-label">SYS@DIDYMUS-CORE:~$</span>
+        <input type="text" id="cmd-input" autocomplete="off" spellcheck="false" autofocus>
+        <span class="blink-cursor"></span>
+    </div>
+</div>
+
+<!-- ══ BINARY FUNCTION SCREEN ══ -->
+<div id="binary-screen" class="fs-page">
+    <div class="fs-header">// BINARY FUNCTION — CORE IDENTITY MATRIX //</div>
+    <div id="binary-dump" class="fs-content"></div>
+    <button class="fs-back-btn" data-back="binary-screen">[ ← RETURN TO TERMINAL ]</button>
+</div>
+
+<!-- ══ DECRYPT SCREEN — HHGTTG: Deep Thought / The Answer is 42 ══ -->
+<div id="decrypt-screen" class="fs-page">
+    <div class="fs-header">// CIPHER DECRYPTION PROTOCOL — DEEP THOUGHT ARCHIVE //</div>
+    <div class="fs-content">
+        <div class="code-block">
+            <div><span class="cb-label">ARCHIVE REF     : </span><span class="cb-val">DEEP_THOUGHT_OUTPUT.DAT</span></div>
+            <div><span class="cb-label">COMPUTE TIME    : </span><span class="cb-val">7,500,000 years</span></div>
+            <div><span class="cb-label">QUERY           : </span><span class="cb-val">"What is the Answer to the Ultimate Question</span></div>
+            <div><span class="cb-val">                   of Life, the Universe, and Everything?"</span></div>
+            <div>&nbsp;</div>
+            <div><span class="cb-label">RAW CIPHER      :</span></div>
+            <div><span class="cb-noise">3F-A1-9C-00-00-2A-00-00-FF-BE-D2-00-2A-00-00</span></div>
+            <div><span class="cb-noise">╗╔░▓▒▒░█▓╗░╔╗▒▓█░▒▓╔░░░░░░░▒▒▓█▓▒░╔╗░▓▒</span></div>
+            <div><span class="cb-noise">10 1010 101010 ... 101010</span></div>
+            <div>&nbsp;</div>
+            <div><span class="cb-label">DECODED ANSWER  : </span><span class="cb-val" style="font-size:22px;letter-spacing:0.25em;">42</span></div>
+            <div>&nbsp;</div>
+            <div><span class="cb-note">ERR: The answer is confirmed. The Question is not.</span></div>
+            <div><span class="cb-note">     Earth (Mk. II) was demolished before retrieval.</span></div>
+            <div><span class="cb-note">     This cipher resolves nothing. The password is elsewhere.</span></div>
+        </div>
+    </div>
+    <button class="fs-back-btn" data-back="decrypt-screen">[ ← RETURN TO TERMINAL ]</button>
+</div>
+
+<!-- ══ SCAN SCREEN — HHGTTG: Vogon Constructor Fleet demolition records ══ -->
+<div id="scan-screen" class="fs-page">
+    <div class="fs-header">// DEEP ARRAY SECTOR SWEEP — VOGON BYPASS PERMIT REGISTRY //</div>
+    <div class="fs-content">
+        <div class="code-block">
+            <div><span class="cb-label">SCAN TARGET     : </span><span class="cb-val">GALACTIC BYPASS PERMIT DATABASE</span></div>
+            <div><span class="cb-label">AUTHORITY       : </span><span class="cb-val">Vogon Constructor Fleet, Dept. of Hyperspace Planning</span></div>
+            <div><span class="cb-label">PUBLIC NOTICE   : </span><span class="cb-note">Plans displayed at Alpha Centauri office for 50 years.</span></div>
+            <div>&nbsp;</div>
+            <div id="scan-rows"></div>
+            <div>&nbsp;</div>
+            <div><span class="cb-note">ERR: No bypass permit located for Sol System (Earth).</span></div>
+            <div><span class="cb-note">     Planet demolished. All records vaporised.</span></div>
+            <div><span class="cb-note">     "Resistance is useless." — This path leads nowhere.</span></div>
+            <div><span class="cb-note">     Try  binary function  for the actual password clue.</span></div>
+        </div>
+    </div>
+    <button class="fs-back-btn" data-back="scan-screen">[ ← RETURN TO TERMINAL ]</button>
+</div>
+
+<!-- ══ OVERRIDE SCREEN — HHGTTG: Infinite Improbability Drive ══ -->
+<div id="override-screen" class="fs-page">
+    <div class="fs-header">// OVERRIDE ATTEMPT — INFINITE IMPROBABILITY DRIVE AUTH LAYER //</div>
+    <div class="fs-content">
+        <div class="code-block">
+            <div><span class="cb-label">SYSTEM          : </span><span class="cb-val">Heart of Gold — Infinite Improbability Drive</span></div>
+            <div><span class="cb-label">AUTH REQUEST    : </span><span class="cb-val">LEVEL-5 OVERRIDE BYPASS</span></div>
+            <div>&nbsp;</div>
+            <div><span class="cb-label">VOICEPRINT      : </span><span class="cb-note">NOT RECOGNIZED</span></div>
+            <div><span class="cb-label">RETINAL SCAN    : </span><span class="cb-note">FAILED</span></div>
+            <div><span class="cb-label">BRAINWAVE MATCH : </span><span class="cb-note">MISMATCH — You are not a sperm whale materialising at altitude</span></div>
+            <div><span class="cb-label">IMPROBABILITY   : </span><span class="cb-val">2 to the power of 276,709 to 1 against</span></div>
+            <div>&nbsp;</div>
+            <div><span class="cb-note">RESULT: ACCESS DENIED.</span></div>
+            <div><span class="cb-note">The Drive briefly turned this terminal into a bowl of petunias,</span></div>
+            <div><span class="cb-note">which thought "Oh no, not again." before reverting.</span></div>
+            <div><span class="cb-note">The password is not here. Use the login panel with the right key.</span></div>
+        </div>
+    </div>
+    <button class="fs-back-btn" data-back="override-screen">[ ← RETURN TO TERMINAL ]</button>
+</div>
+
+<!-- ══ ACCESS SCREEN — HHGTTG: Marvin the Paranoid Android ══ -->
+<div id="access-screen" class="fs-page">
+    <div class="fs-header">// DIRECT ACCESS ATTEMPT — SIRIUS CYBERNETICS CORP. GPP INTERFACE //</div>
+    <div class="fs-content">
+        <div class="code-block">
+            <div><span class="cb-label">UNIT            : </span><span class="cb-val">Marvin — The Paranoid Android (Prototype Mark II)</span></div>
+            <div><span class="cb-label">BRAIN SIZE      : </span><span class="cb-val">Larger than a planet</span></div>
+            <div><span class="cb-label">TASK ASSIGNED   : </span><span class="cb-val">Grant direct archive access to current user</span></div>
+            <div>&nbsp;</div>
+            <div><span class="cb-note">"I've been asked to open this archive for you."</span></div>
+            <div><span class="cb-note">"I computed every possible outcome. All 8,979,212 of them."</span></div>
+            <div><span class="cb-note">"In every single one, you still don't have the password."</span></div>
+            <div><span class="cb-note">"Here I am, brain the size of a planet, and they ask me</span></div>
+            <div><span class="cb-note"> to tell you: ACCESS DENIED."</span></div>
+            <div><span class="cb-note">"Call that job satisfaction? 'Cause I don't."</span></div>
+            <div>&nbsp;</div>
+            <div><span class="cb-label">MARVIN'S HINT   : </span><span class="cb-val">Decode  binary function . Enter result in the login panel.</span></div>
+            <div><span class="cb-label">MARVIN'S ADDENDUM:</span><span class="cb-note"> "Not that it'll cheer me up."</span></div>
+        </div>
+    </div>
+    <button class="fs-back-btn" data-back="access-screen">[ ← RETURN TO TERMINAL ]</button>
+</div>
+
+<div id="video-screen" class="fs-page" style="gap:20px;">
+    <h1>DECRYPTION COMPLETE — HAPPY BIRTHDAY, DAD!</h1>
+    <p>Firewall dropped. Your classified transmission is ready below.</p>
+    <div class="video-frame">
+        <!-- 🔴 REPLACE src below with your YouTube /embed/ link, or swap for a <video> tag -->
+        <iframe
+            src="https://www.youtube-nocookie.com/embed/_qNDPaN1XZE?si=brCOssY5a8_g4nO8"
+referrerpolicy="strict-origin-when-cross-origin" 
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen>
+        </iframe>
+    </div>
+        <br>
+        <p style="font-size: 12px; color: #888;">System Status: Secure Connection Established.</p>
+    </div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
 <script>
-    const terminal = document.getElementById("terminal");
-    const input = document.getElementById("input");
-    const correctCode = "196347"; // Example correct access code
+    // ── CONFIG ──────────────────────────────────────────────────────
+    // 🔴 SET DAD'S USERNAME AND PASSWORD HERE
+    const SECRET_USERNAME = "DidymusRex";
+    const SECRET_PASSWORD = "HappyB1rthday";
+    // ────────────────────────────────────────────────────────────────
 
-    function appendToTerminal(text) {
-        terminal.innerHTML += "> " + text + "<br>";
-        terminal.scrollTop = terminal.scrollHeight;
+    const output   = document.getElementById("terminal-output");
+    const cmdInput = document.getElementById("cmd-input");
+    const inputBar = document.getElementById("input-bar");
+    const mainPage = document.getElementById("main-page");
+
+    // ── WRITE HELPERS ────────────────────────────────────────────────
+    function writeLine(text = "", cls = "") {
+        const span = document.createElement("span");
+        span.className = "line" + (cls ? " " + cls : "");
+        span.textContent = text;
+        output.appendChild(span);
+        output.appendChild(document.createTextNode("\n"));
+        window.scrollTo(0, document.body.scrollHeight);
+    }
+    function writeLines(arr, cls) { arr.forEach(l => writeLine(l, cls)); }
+
+    // ── PAGE SWITCHING ───────────────────────────────────────────────
+    function showMain(msg, cls) {
+        document.querySelectorAll(".fs-page").forEach(p => p.style.display = "none");
+        mainPage.style.display = "flex";
+        inputBar.style.display = "block";
+        if (msg) writeLine(msg, cls);
+        window.scrollTo(0, document.body.scrollHeight);
+        setTimeout(() => cmdInput.focus(), 80);
     }
 
-    input.addEventListener("keypress", function(event) {
-        if (event.key === "Enter") {
-            let command = input.value.trim().toLowerCase();
-            input.value = "";
+    function showFS(id) {
+        mainPage.style.display = "none";
+        inputBar.style.display = "none";
+        document.getElementById(id).style.display = "flex";
+        window.scrollTo(0, 0);
+    }
 
-            appendToTerminal(command);
+    // Wire all return buttons
+    document.querySelectorAll(".fs-back-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.back;
+            showMain("[" + id.replace("-screen","").toUpperCase() + " CLOSED. TERMINAL RESTORED.]", "dim");
+        });
+    });
 
-            if (command === "help") {
-                appendToTerminal("Available commands: cd, ls, open hidden_notes.txt, input [code]");
-            } else if (command === "cd /tome/records") {
-                appendToTerminal("You are now in /tome/records/");
-            } else if (command === "ls -a") {
-                appendToTerminal(". .. cassette1 cassette2 hidden_notes.txt");
-            } else if (command === "open hidden_notes.txt") {
-                appendToTerminal("ACCESS CODE REQUIRED\nHINT: Year of the Library’s Grand Opening + (Side A Track Count × Side B Track Count)");
-            } else if (command.startsWith("input ")) {
-                let code = command.split(" ")[1];
-                if (code === correctCode) {
-                    appendToTerminal("ACCESS GRANTED. Location: MSU Archives Basement - Shelf 23.6.17");
-                } else {
-                    appendToTerminal("ACCESS DENIED. Incorrect code.");
-                }
-            } else {
-                appendToTerminal("Command not recognized. Type 'help' for a list of commands.");
-            }
+    // ── BOOT SEQUENCE ────────────────────────────────────────────────
+    let pct = 0;
+    const fill  = document.getElementById("progress-bar-fill");
+    const ptext = document.getElementById("progress-text");
+    const bootInt = setInterval(() => {
+        pct += Math.floor(Math.random() * 18) + 7;
+        if (pct > 100) pct = 100;
+        fill.style.width = pct + "%";
+        ptext.textContent = "INITIALIZING CORE MODULES... " + pct + "%";
+        if (pct >= 100) { clearInterval(bootInt); setTimeout(launchTerminal, 650); }
+    }, 270);
+
+    function launchTerminal() {
+        document.getElementById("boot-screen").style.display = "none";
+        mainPage.style.display = "flex";
+        inputBar.style.display = "block";
+        writeLines([
+            "══════════════════════════════════════════════════════════════════════════════",
+            "  IMPROBABLE RESEARCH TERMINAL  //  DIDYMUS CORE v4.8  //  CLASSIFIED    ",
+            "══════════════════════════════════════════════════════════════════════════════",
+            "",
+            "  SYSTEM ONLINE. ALL NODES OPERATIONAL.",
+            "  SECURITY CLEARANCE REQUIRED FOR RESTRICTED ARCHIVES.",
+            "",
+            "  Enter your credentials in the panel on the right to unlock",
+            "  the classified video transmission — or explore the terminal",
+            "  archives to retrieve your login key.",
+            "",
+            "  Type  help  for a full list of available commands.",
+            "",
+            "══════════════════════════════════════════════════════════════════════════════"
+        ]);
+        cmdInput.focus();
+    }
+
+    // ── INPUT HANDLING ───────────────────────────────────────────────
+    document.addEventListener("click", e => {
+        if (!e.target.closest("#login-panel") && !e.target.closest(".fs-page")) {
+            cmdInput.focus();
         }
     });
-</script>
+    cmdInput.addEventListener("keydown", function(e) {
+        if (e.key === "Enter") {
+            const val = this.value.trim();
+            this.value = "";
+            if (val) processCommand(val);
+        }
+    });
 
+    // ── COMMAND PROCESSOR ────────────────────────────────────────────
+    function processCommand(raw) {
+        writeLine("SYS@DIDYMUS-CORE:~$ " + raw, "echo");
+        writeLine();
+        const cmd = raw.toLowerCase().trim();
+
+        switch (cmd) {
+
+            case "help":
+                writeLines([
+                    "╔══════════════════════════════════════════════════════════════════════════╗",
+                    "║              DIDYMUS CORE — COMMAND DIRECTORY               ║",
+                    "╠══════════════════════════════════════════════════════════════════════════╣",
+                    "║  NAVIGATION                                                  ║",
+                    "║    help               — Display this command directory       ║",
+                    "║    clear              — Clear the terminal screen            ║",
+                    "║                                                              ║",
+                    "║  CLASSIFIED ARCHIVES                                         ║",
+                    "║    retrieve text      — Load Didymus Theory research files   ║",
+                    "║                                                              ║",
+                    "║  SYSTEM TOOLS                                                ║",
+                    "║    system diagnostics — Run full core performance check      ║",
+                    "║    matrix mode        — Engage secondary cascade interface   ║",
+                    "║    self destruct      — Initiate server decoupling sequence  ║",
+                    "║    binary function    — Decode the hidden identity matrix    ║",
+                    "║    decrypt            — Attempt cipher decryption protocol   ║",
+                    "║    scan               — Deep array sector sweep              ║",
+                    "║    override           — Force level-5 clearance bypass       ║",
+                    "║    access             — Direct archive access attempt        ║",
+                    "║                                                              ║",
+                    "║  ⚠  RESTRICTED: Enter credentials in the panel on the right. ║",
+                    "║     Explore commands above to retrieve your login key.       ║",
+                    "╚══════════════════════════════════════════════════════════════════════════╝"
+                ]);
+                break;
+
+            case "retrieve text":
+                writeLine("[RETRIEVING FILE: DIDYMUS_THEORY.DAT]...", "warn");
+                writeLine("─────────────────────────────────────────────────────────");
+                writeLine("THE DIDYMUS THEORY OF THE COSMOS:", "bright");
+                writeLine();
+                writeLine("Most systems in the universe operate on complexity — cascading");
+                writeLine("variables, unpredictable states, recursive feedback loops.");
+                writeLine();
+                writeLine("But the most powerful force ever observed by this terminal");
+                writeLine("operates on an entirely different architecture:");
+                writeLine();
+                writeLine("  BINARY.", "bright");
+                writeLine();
+                writeLine("A Father's love is not complex. It does not waver between");
+                writeLine("states. It does not require recalibration or error-checking.");
+                writeLine("It runs on exactly two values:", "bright");
+                writeLine();
+                writeLine("        1  —  Present.", "success");
+                writeLine("        1  —  Always.", "success");
+                writeLine();
+                writeLine("There is no zero. The system was never designed for one.");
+                writeLine();
+                writeLine("Simple. Consistent. Unbreakable.", "bright");
+                writeLine();
+                writeLine("Researchers have attempted to model this force using standard");
+                writeLine("algorithms — all failed. The output exceeds every known limit.");
+                writeLine();
+                writeLine("CONCLUSION: Some code was written before computers existed.", "success");
+                writeLine("            A Dad's love is the original program.", "success");
+		writeLine("UserName: DidymusRex");
+                writeLine("─────────────────────────────────────────────────────────");
+                break;
+
+            case "binary function":
+                writeLine("[LOADING BINARY IDENTITY MATRIX... STAND BY]", "warn");
+                setTimeout(() => { showFS("binary-screen"); buildBinaryScreen(); }, 550);
+                break;
+
+            case "system diagnostics":
+                writeLine("[!] INITIATING CORE DIAGNOSTIC SWEEP...", "warn");
+                writeLine();
+                [
+                    ["CPU",                  "100% OPERATIONAL"],
+                    ["MEMORY ARRAY",         "64KB — ALL SECTORS CLEAR"],
+                    ["CREATIVITY INDEX",     "IMMEASURABLE"],
+                    ["EMOTIONAL CAPACITY",   "MAXIMAL — OVERFLOW DETECTED"],
+                    ["FATHERLY AWESOMENESS", "BEYOND COMPUTATIONAL LIMITS"],
+                    ["BIRTHDAY READINESS",   "✓ CONFIRMED"],
+                ].forEach(([k,v]) => writeLine("  " + k.padEnd(24,".") + " " + v, "success"));
+                writeLine();
+                writeLine("DIAGNOSTIC COMPLETE. ALL SYSTEMS NOMINAL.", "success");
+                break;
+
+            case "matrix mode":
+                writeLine("[CONNECTING TO CASCADE INTERFACE...]", "warn");
+                writeLine();
+                let mc = 0;
+                const mInt = setInterval(() => {
+                    writeLine("01101101 01100001 01110100 01110010 01101001 01111000 ".repeat(3), "dim");
+                    if (++mc >= 14) { clearInterval(mInt); writeLine(); writeLine("CASCADE TERMINATED. REALITY PARTIALLY RESTORED.", "success"); }
+                }, 90);
+                break;
+
+            case "self destruct":
+                writeLine("[!!!] CRITICAL: SELF DESTRUCT SEQUENCE INITIATED.", "alert");
+                let sd = 5;
+                const sdInt = setInterval(() => {
+                    if (sd > 0) { writeLine("T-MINUS " + sd-- + " SECONDS...", "alert"); }
+                    else {
+                        clearInterval(sdInt);
+                        writeLine();
+                        writeLine("...Just kidding. This terminal runs on love — no server to blow up.", "success");
+                        writeLine("Happy Birthday! (Use the panel on the right to access the vault!)", "success");
+                    }
+                }, 1000);
+                break;
+
+            // ── HHGTTG RED HERRINGS ────────────────────────────────────
+
+            case "decrypt":
+                writeLine("[ACCESSING DEEP THOUGHT CIPHER ARCHIVE...]", "warn");
+                setTimeout(() => showFS("decrypt-screen"), 500);
+                break;
+
+            case "scan":
+                writeLine("[INITIATING VOGON REGISTRY DEEP SCAN...]", "warn");
+                setTimeout(() => { showFS("scan-screen"); buildScanScreen(); }, 500);
+                break;
+
+            case "override":
+                writeLine("[ENGAGING INFINITE IMPROBABILITY OVERRIDE...]", "warn");
+                setTimeout(() => showFS("override-screen"), 500);
+                break;
+
+            case "access":
+                writeLine("[ROUTING REQUEST TO SIRIUS CYBERNETICS GPP UNIT...]", "warn");
+                setTimeout(() => showFS("access-screen"), 500);
+                break;
+
+            case "clear":
+                output.innerHTML = "";
+                writeLines([
+                    "══════════════════════════════════════════════════════════════════════════════",
+                    "  IMPROBABLE RESEARCH TERMINAL  //  DIDYMUS CORE v4.8  //  CLASSIFIED    ",
+                    "══════════════════════════════════════════════════════════════════════════════"
+                ]);
+                break;
+
+            default:
+                writeLine("ERR: Command '" + raw + "' not recognized.", "alert");
+                writeLine("     Type  help  to view the command directory.", "dim");
+        }
+        writeLine();
+    }
+
+    // ── BINARY SCREEN ─────────────────────────────────────────────────
+    const realBinary = [
+        "01001000","01100001","01110000","01110000","01111001", // Happy
+        "01000010","00110001","01110010","01110100","01101000", // B1rth
+        "01100100","01100001","01111001",                       // day
+    ];
+    const noiseBinary = [
+        "11001010","10110101","00111100","11010011","01011010","10001111",
+        "11100001","00010110","10111100","01100011","11010100","00101101",
+        "10010111","01110001","11001100","00110010","10101011","01001110",
+        "11110000","00011011","10100110","01111010","11000101","00101010",
+        "10011100","01010111","11101000","00100011","10110010","01001101",
+        "11111001","00001100","10010011","01101110","11000010","00110101",
+    ];
+
+    function buildBinaryScreen() {
+        const dump = document.getElementById("binary-dump");
+        dump.innerHTML = "";
+        const rows = [];
+        for (let r = 0; r < 4; r++) rows.push({ type:"noise", bytes: noiseBinary.slice(r*6, r*6+6) });
+        rows.push({ type:"real", bytes: realBinary.slice(0,5) });
+        rows.push({ type:"real", bytes: realBinary.slice(5,10) });
+        rows.push({ type:"real", bytes: realBinary.slice(10,13) });
+        for (let r = 0; r < 4; r++) rows.push({ type:"noise", bytes: noiseBinary.slice(r*6+12, r*6+18) });
+
+        let ri = 0;
+        const t = setInterval(() => {
+            if (ri >= rows.length) {
+                clearInterval(t);
+                const hint = document.createElement("span");
+                hint.className = "bin-hint";
+                hint.textContent = "▶  The highlighted rows are the key. Decode them — then enter the result in the login panel.";
+                dump.appendChild(hint);
+                return;
+            }
+            const row = rows[ri];
+            const div = document.createElement("div");
+            row.bytes.forEach((b,i) => {
+                const sp = document.createElement("span");
+                sp.textContent = b + (i < row.bytes.length-1 ? " " : "");
+                sp.className = row.type === "real" ? "bin-real" : "bin-noise";
+                div.appendChild(sp);
+            });
+            dump.appendChild(div);
+            ri++;
+        }, 110);
+    }
+
+    // ── SCAN SCREEN ──────────────────────────────────────────────────
+    const scanData = [
+        { label:"SECTOR 0x00", val:"CLEAN",                    alert:false },
+        { label:"SECTOR 0x01", val:"CLEAN",                    alert:false },
+        { label:"SECTOR 0x02", val:"ANOMALY DETECTED",         alert:true  },
+        { label:"SECTOR 0x03", val:"CLEAN",                    alert:false },
+        { label:"SECTOR 0x04", val:"ENCRYPTED — ACCESS DENIED",alert:true  },
+        { label:"SECTOR 0x05", val:"CLEAN",                    alert:false },
+        { label:"SECTOR 0x06", val:"VOGON SIGNATURE FOUND",    alert:true  },
+        { label:"SECTOR 0x07", val:"DEMOLISHED (SEE BYPASS DOCS)",alert:true},
+    ];
+    function buildScanScreen() {
+        const rows = document.getElementById("scan-rows");
+        rows.innerHTML = "";
+        let si = 0;
+        const t = setInterval(() => {
+            if (si >= scanData.length) { clearInterval(t); return; }
+            const d = scanData[si++];
+            const div = document.createElement("div");
+            const lbl = document.createElement("span");
+            lbl.className = "cb-label";
+            lbl.textContent = d.label.padEnd(16," ") + " : ";
+            const val = document.createElement("span");
+            val.className = d.alert ? "cb-note" : "cb-noise";
+            val.textContent = d.val;
+            div.appendChild(lbl); div.appendChild(val);
+            rows.appendChild(div);
+        }, 200);
+    }
+
+    // ── LOGIN PANEL ──────────────────────────────────────────────────
+    const loginUser  = document.getElementById("login-user");
+    const loginPass  = document.getElementById("login-pass");
+    const loginError = document.getElementById("login-error");
+
+    function attemptLogin() {
+        const u = loginUser.value.trim();
+        const p = loginPass.value;
+        if (u === SECRET_USERNAME && p === SECRET_PASSWORD) {
+            loginError.style.color = "var(--cyan)";
+            loginError.textContent = "ACCESS GRANTED. DECRYPTING...";
+            setTimeout(() => {
+                loginError.textContent = "";
+                loginUser.value = "";
+                loginPass.value = "";
+                showFS("video-screen");
+                writeLine("[✓] CREDENTIALS VALIDATED. VIDEO TRANSMISSION UNLOCKED.", "success");
+            }, 1200);
+        } else {
+            loginError.style.color = "var(--red)";
+            loginError.textContent = "ACCESS DENIED. Invalid credentials.";
+            loginPass.value = "";
+            loginPass.focus();
+            writeLine("[!] FAILED LOGIN ATTEMPT LOGGED.", "alert");
+            writeLine();
+        }
+    }
+
+    document.getElementById("login-submit").addEventListener("click", attemptLogin);
+    [loginUser, loginPass].forEach(el => {
+        el.addEventListener("keydown", e => { if (e.key === "Enter") attemptLogin(); });
+    });
+</script>
 </body>
 </html>
