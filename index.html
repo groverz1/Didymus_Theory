@@ -387,7 +387,16 @@
     <div id="binary-dump" class="fs-content"></div>
     <button class="fs-back-btn" data-back="binary-screen">[ ← RETURN TO TERMINAL ]</button>
 </div>
-
+!-- ══ SELF DESTRUCT SCREEN ══ -->
+<div id="selfdestruct-screen" class="fs-page">
+    <div class="fs-header">// CRITICAL — SELF DESTRUCT SEQUENCE INITIATED //</div>
+    <div class="fs-content" style="text-align:center;">
+        <div id="sd-countdown" style="font-size:13px; line-height:2; color:var(--red); text-shadow: 0 0 8px rgba(255,51,0,0.6);"></div>
+        <div id="sd-petunia" style="display:none; margin-top: 20px; text-align:center;"></div>
+        <div id="sd-aftermath" style="display:none; margin-top:18px; line-height:1.9;"></div>
+    </div>
+    <button class="fs-back-btn" id="sd-back-btn" data-back="selfdestruct-screen" style="display:none;">[ ← RETURN TO TERMINAL ]</button>
+</div>
 <!-- ══ DECRYPT SCREEN — HHGTTG: Deep Thought / The Answer is 42 ══ -->
 <div id="decrypt-screen" class="fs-page">
     <div class="fs-header">// CIPHER DECRYPTION PROTOCOL — DEEP THOUGHT ARCHIVE //</div>
