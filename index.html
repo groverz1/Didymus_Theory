@@ -691,19 +691,133 @@ referrerpolicy="strict-origin-when-cross-origin"
                 }, 90);
                 break;
 
-            case "self destruct":
-                writeLine("[!!!] CRITICAL: SELF DESTRUCT SEQUENCE INITIATED.", "alert");
-                let sd = 5;
-                const sdInt = setInterval(() => {
-                    if (sd > 0) { writeLine("T-MINUS " + sd-- + " SECONDS...", "alert"); }
-                    else {
-                        clearInterval(sdInt);
-                        writeLine();
-                        writeLine("...Just kidding. This terminal runs on love — no server to blow up.", "success");
-                        writeLine("Happy Birthday! (Use the panel on the right to access the vault!)", "success");
-                    }
-                }, 1000);
-                break;
+            // ── SELF DESTRUCT SCREEN ─────────────────────────────────────────
+function runSelfDestruct() {
+    const cdEl      = document.getElementById("sd-countdown");
+    const petuniaEl = document.getElementById("sd-petunia");
+    const afterEl   = document.getElementById("sd-aftermath");
+    const backBtn   = document.getElementById("sd-back-btn");
+
+    // Reset state
+    cdEl.innerHTML          = "";
+    petuniaEl.style.display = "none";
+    petuniaEl.innerHTML     = "";
+    afterEl.style.display   = "none";
+    afterEl.innerHTML       = "";
+    backBtn.style.display   = "none";
+
+    // Phase 1: countdown 5 → 0
+    let count = 5;
+
+    function addLine(text, color) {
+        const d = document.createElement("div");
+        d.textContent = text;
+        if (color) d.style.color = color;
+        cdEl.appendChild(d);
+    }
+
+    addLine("[!!!] SELF DESTRUCT SEQUENCE ACTIVATED", "var(--red)");
+    addLine("WARNING: ALL DATA WILL BE VAPORISED", "var(--red)");
+    addLine("", "");
+
+    const cdInt = setInterval(() => {
+        if (count > 0) {
+            addLine("T-MINUS " + count + " SECOND" + (count !== 1 ? "S" : "") + "...", "var(--red)");
+            count--;
+        } else {
+            clearInterval(cdInt);
+            addLine("", "");
+            addLine("DETONATING...", "var(--red)");
+
+            // Phase 2: improbability wave → petunia
+            setTimeout(() => {
+                addLine("", "");
+                addLine("[!] IMPROBABILITY WAVE DETECTED — REALITY SUBSTITUTION IN PROGRESS", "var(--amber)");
+
+                setTimeout(() => {
+                    petuniaEl.style.display = "block";
+
+                    // ASCII petunia
+                    const petunia = [
+                        "                 ____",
+                        "              ,-'    `-.",
+                        "            ,'  (\\  /)  `.",
+                        "           /   ( \\/ ) *  \\",
+                        "          |  *  \\  /  ()  |",
+                        "          |   () \\/ *     |",
+                        "           \\    (__)   * /",
+                        "            `.  *    ,'",
+                        "              `------'",
+                        "                 ||",
+                        "              ___||___",
+                        "             /   ||   \\",
+                        "            /    ||    \\",
+                        "           |     ||     |",
+                        "            \\    ||    /",
+                        "             `---''---'",
+                    ];
+
+                    const thoughtBubble = [
+                        "",
+                        "  . o O ( Oh no, not again. )",
+                        "",
+                    ];
+
+                    const allLines = [...petunia, ...thoughtBubble];
+                    let li = 0;
+                    const lineInt = setInterval(() => {
+                        if (li >= allLines.length) {
+                            clearInterval(lineInt);
+
+                            // Phase 3: aftermath messages
+                            setTimeout(() => {
+                                afterEl.style.display = "block";
+
+                                const msgs = [
+                                    { t: "IMPROBABILITY EVENT RESOLVED.",                          c: "var(--amber)"     },
+                                    { t: "Terminal briefly became a bowl of petunias at altitude.", c: "var(--green-dim)" },
+                                    { t: "Server grid: still intact.",                              c: "var(--green-dim)" },
+                                    { t: "",                                                         c: ""                },
+                                    { t: "...Just kidding. This terminal runs on love.",            c: "var(--cyan)"      },
+                                    { t: "No servers were harmed. Happy Birthday!",                 c: "var(--cyan)"      },
+                                    { t: "(Use the login panel to access the real vault.)",         c: "var(--green-dim)" },
+                                ];
+
+                                let mi = 0;
+                                const msgInt = setInterval(() => {
+                                    if (mi >= msgs.length) {
+                                        clearInterval(msgInt);
+                                        backBtn.style.display = "inline-block";
+                                        return;
+                                    }
+                                    const row = msgs[mi++];
+                                    const d = document.createElement("div");
+                                    d.textContent = row.t;
+                                    d.style.color = row.c || "var(--green)";
+                                    d.style.textAlign = "center";
+                                    afterEl.appendChild(d);
+                                }, 350);
+                            }, 600);
+
+                            return;
+                        }
+
+                        const row = document.createElement("div");
+                        row.textContent = allLines[li++];
+                        row.style.color       = li <= petunia.length ? "var(--green)" : "var(--amber)";
+                        row.style.fontFamily  = "Courier New, monospace";
+                        row.style.whiteSpace  = "pre";
+                        row.style.textAlign   = "left";
+                        row.style.display     = "inline-block";
+                        petuniaEl.appendChild(row);
+                        petuniaEl.appendChild(document.createElement("br"));
+                    }, 60);
+
+                }, 700);
+            }, 500);
+        }
+    }, 900);
+}
 
             // ── HHGTTG RED HERRINGS ────────────────────────────────────
 
