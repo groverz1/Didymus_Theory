@@ -486,9 +486,9 @@
     <button class="fs-back-btn" data-back="access-screen">[ ← RETURN TO TERMINAL ]</button>
 </div>
 	
-```js
 // ── SELF DESTRUCT SCREEN ─────────────────────────────────────────
-function runSelfDestruct() {
+
+	function runSelfDestruct() {
     const cdEl      = document.getElementById("sd-countdown");
     const petuniaEl = document.getElementById("sd-petunia");
     const afterEl   = document.getElementById("sd-aftermath");
@@ -614,7 +614,6 @@ function runSelfDestruct() {
         }
     }, 900);
 }
-```
 
 <div id="video-screen" class="fs-page" style="gap:20px;">
     <h1>DECRYPTION COMPLETE — HAPPY BIRTHDAY, DAD!</h1>
@@ -837,12 +836,11 @@ referrerpolicy="strict-origin-when-cross-origin"
                 setTimeout(() => showFS("decrypt-screen"), 500);
                 break;
 				
-  ```js
+
 case "self destruct":
     writeLine("[!!!] CRITICAL: SELF DESTRUCT SEQUENCE INITIATED.", "alert");
     setTimeout(() => { showFS("selfdestruct-screen"); runSelfDestruct(); }, 400);
     break;
-```
  
             case "scan":
                 writeLine("[INITIATING VOGON REGISTRY DEEP SCAN...]", "warn");
