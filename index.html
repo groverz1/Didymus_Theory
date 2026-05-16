@@ -837,10 +837,12 @@ referrerpolicy="strict-origin-when-cross-origin"
                 setTimeout(() => showFS("decrypt-screen"), 500);
                 break;
 				
-   case "self destruct":
-                writeLine("[!!!] CRITICAL: SELF DESTRUCT SEQUENCE INITIATED.", "alert");
-                setTimeout(() => { showFS("selfdestruct-screen"); runSelfDestruct(); }, 400);
-                break;
+  ```js
+case "self destruct":
+    writeLine("[!!!] CRITICAL: SELF DESTRUCT SEQUENCE INITIATED.", "alert");
+    setTimeout(() => { showFS("selfdestruct-screen"); runSelfDestruct(); }, 400);
+    break;
+```
  
             case "scan":
                 writeLine("[INITIATING VOGON REGISTRY DEEP SCAN...]", "warn");
